@@ -10,7 +10,7 @@
 
   interactivity()
 
-  const amount = 10000
+  const amount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
 
   const positions = new Float32Array( amount * 3 )
   const colors = new Float32Array( amount * 3 )
@@ -106,7 +106,7 @@
 </T.PerspectiveCamera>
 
 <Environment
-  path="/assets/"
+  path="assets/"
   files="starmap_2020_8k_gal.jpg"
   isBackground={true}
 />
@@ -131,7 +131,7 @@
     {vertexShader}
     uniforms={{
       color: { value: color },
-      pointTexture: { value: new TextureLoader().load('/assets/disc.png') },
+      pointTexture: { value: new TextureLoader().load('assets/disc.png') },
       alphaTest: { value: 0.5 },
     }}
 
