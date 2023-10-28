@@ -1,4 +1,7 @@
-# create-svelte
+# Orion's Arm
+
+Credits:
+- [`/static/starmap_2020_8k_gal.jpg`](https://svs.gsfc.nasa.gov/4851): NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC. Constellation figures based on those developed for the IAU by Alan MacRobert of Sky and Telescope magazine (Roger Sinnott and Rick Fienberg).
 
 Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
 

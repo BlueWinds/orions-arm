@@ -1,81 +1,142 @@
 <script>
-  import { T } from '@threlte/core'
-  import { ContactShadows, Float, Grid, OrbitControls } from '@threlte/extras'
+  import { T, useLoader, useFrame } from '@threlte/core'
+  import { ContactShadows, createTransition, Environment, Float, Grid, interactivity, OrbitControls } from '@threlte/extras'
+  import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
+  import { cubicInOut } from 'svelte/easing'
+
+  import { luminosity, randomMass, massToType } from '$lib/stars'
+  import fragmentShader from './fragment.glsl?raw'
+  import vertexShader from './vertex.glsl?raw'
+
+  interactivity()
+
+  const amount = 10000
+
+  const positions = new Float32Array( amount * 3 )
+  const colors = new Float32Array( amount * 3 )
+  const sizes = new Float32Array( amount )
+  const baseSizes = new Float32Array( amount )
+
+  const vertex = new Vector3(0, 0, 0)
+  const color = new Color( 0xffffff )
+  const masses = new Array( amount )
+
+  const addStar = (mass, i) => {
+    const [brightness, c] = luminosity(mass)
+
+    color.set(c)
+
+    vertex.toArray(positions, i * 3)
+    color.toArray(colors, i * 3)
+
+    masses[i] = mass
+    baseSizes[i] = brightness / 3
+    sizes[i] = brightness / 3
+  }
+
+  addStar(1, 0)
+  console.log(sizes[0])
+
+  const boxSize = 40
+
+  for ( let i = 1; i < amount; i ++ ) {
+    vertex.x = (Math.random() - 0.5) * boxSize
+    vertex.y = (Math.random() - 0.5) * boxSize
+    vertex.z = (Math.random() - 0.5) * boxSize
+
+    addStar(randomMass(), i)
+  }
+
+
+  const pointsBufferGeometry = new BufferGeometry()
+
+  pointsBufferGeometry.setAttribute('position', new BufferAttribute( positions, 3 ));
+  pointsBufferGeometry.setAttribute('customColor', new BufferAttribute( colors, 3 ));
+  pointsBufferGeometry.setAttribute('size', new BufferAttribute( sizes, 1 ));
+
+  let hoverIndex, hoverTransitions = {}
+
+  const hoverAnimationSpan = 0.3
+  useFrame(
+    ({ invalidate }, delta) => {
+      if (Object.keys(hoverTransitions).length) {
+        const sizeAttr = pointsBufferGeometry.attributes.size
+        sizeAttr.needsUpdate = true
+
+        for (let index in hoverTransitions) {
+          if (hoverIndex == index) {
+            // Easing bigger, because hovered
+            if (hoverTransitions[index] < 1) {
+              hoverTransitions[index] += delta / hoverAnimationSpan
+            }
+          } else {
+            // Easing smaller, because no longer hovered
+            hoverTransitions[index] -= delta / hoverAnimationSpan
+          }
+          sizeAttr.array[index] = baseSizes[index] * (1 + cubicInOut(hoverTransitions[index]))
+          if (hoverTransitions[index] <= 0) {
+            delete hoverTransitions[index]
+          }
+        }
+        invalidate()
+      }
+    },
+    { invalidate: false }
+  )
+
+  const cameraOffset = new Vector3(0, 0.205, -0.75)
 </script>
 
 <T.PerspectiveCamera
   makeDefault
-  position={[-10, 10, 10]}
-  fov={15}
+  position={[2, 0, 0]}
+  fov={60}
 >
   <OrbitControls
     autoRotate
-    enableZoom={false}
-    enableDamping
-    autoRotateSpeed={0.5}
-    target.y={1.5}
+    autoRotateSpeed={0.01}
+    enableZoom={true}
+    enablePan={false}
+    enableDamping={true}
+    dampingFactor={0.03}
+    target.x={cameraOffset.x}
+    target.y={cameraOffset.y}
+    target.z={cameraOffset.z}
   />
 </T.PerspectiveCamera>
 
-<T.DirectionalLight
-  intensity={0.8}
-  position.x={5}
-  position.y={10}
-/>
-<T.AmbientLight intensity={0.2} />
-
-<Grid
-  position.y={-0.001}
-  cellColor="#ffffff"
-  sectionColor="#ffffff"
-  sectionThickness={0}
-  fadeDistance={25}
-  cellSize={2}
+<Environment
+  path="/assets/"
+  files="starmap_2020_8k_gal.jpg"
+  isBackground={true}
 />
 
-<ContactShadows
-  scale={10}
-  blur={2}
-  far={2.5}
-  opacity={0.5}
-/>
+<T.Points
+  position.y={0.2}
+  position.z={-0.75}
 
-<Float
-  floatIntensity={1}
-  floatingRange={[0, 1]}
->
-  <T.Mesh
-    position.y={1.2}
-    position.z={-0.75}
-  >
-    <T.BoxGeometry />
-    <T.MeshStandardMaterial color="#0059BA" />
-  </T.Mesh>
-</Float>
+  on:pointermove={(event) => {
+    event.stopPropagation()
+    const intersection = event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
 
-<Float
-  floatIntensity={1}
-  floatingRange={[0, 1]}
+    if (intersection && hoverIndex !== intersection.index) {
+      hoverIndex = intersection.index
+      hoverTransitions[hoverIndex] = 0
+    }
+  }}
 >
-  <T.Mesh
-    position={[1.2, 1.5, 0.75]}
-    rotation.x={5}
-    rotation.y={71}
-  >
-    <T.TorusKnotGeometry args={[0.5, 0.15, 100, 12, 2, 3]} />
-    <T.MeshStandardMaterial color="#F85122" />
-  </T.Mesh>
-</Float>
+  <T is={pointsBufferGeometry} />
+  <T.ShaderMaterial
+    {fragmentShader}
+    {vertexShader}
+    uniforms={{
+      color: { value: color },
+      pointTexture: { value: new TextureLoader().load('/assets/disc.png') },
+      alphaTest: { value: 0.5 },
+    }}
 
-<Float
-  floatIntensity={1}
-  floatingRange={[0, 1]}
->
-  <T.Mesh
-    position={[-1.4, 1.5, 0.75]}
-    rotation={[-5, 128, 10]}
-  >
-    <T.IcosahedronGeometry />
-    <T.MeshStandardMaterial color="#F8EBCE" />
-  </T.Mesh>
-</Float>
+    blending={AdditiveBlending}
+    depthTest={false}
+    transparent={false}
+  />
+</T.Points>
