@@ -3,6 +3,7 @@
   import { ContactShadows, createTransition, Environment, Float, Grid, interactivity, OrbitControls } from '@threlte/extras'
   import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
   import { cubicInOut } from 'svelte/easing'
+  import { base } from '$app/paths';
 
   import { luminosity, randomMass, massToType } from '$lib/stars'
   import fragmentShader from './fragment.glsl?raw'
@@ -35,7 +36,6 @@
   }
 
   addStar(1, 0)
-  console.log(sizes[0])
 
   const boxSize = 40
 
@@ -106,7 +106,7 @@
 </T.PerspectiveCamera>
 
 <Environment
-  path="assets/"
+  path="{base}/assets/"
   files="starmap_2020_8k_gal.jpg"
   isBackground={true}
 />
@@ -131,7 +131,7 @@
     {vertexShader}
     uniforms={{
       color: { value: color },
-      pointTexture: { value: new TextureLoader().load('assets/disc.png') },
+      pointTexture: { value: new TextureLoader().load(base + '/assets/disc.png') },
       alphaTest: { value: 0.5 },
     }}
 
