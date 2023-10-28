@@ -8,11 +8,11 @@ const config = {
 			pages: "docs",
 			assets: "docs",
 			fallback: "index.html",
-		})
-	},
-	paths: {
-		// change below to your repo name
-		base: dev ? "" : "/orions-arm",
+		}),
+		paths: {
+			// change below to your repo name
+			base: dev ? "" : "/orions-arm",
+		},
 	},
 };
 
