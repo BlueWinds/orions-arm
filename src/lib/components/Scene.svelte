@@ -1,10 +1,12 @@
 <script>
   import { T, useLoader, useFrame } from '@threlte/core'
-  import { ContactShadows, createTransition, Environment, Float, Grid, interactivity, OrbitControls } from '@threlte/extras'
+  import { Environment, interactivity } from '@threlte/extras'
   import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
-  import { cubicInOut } from 'svelte/easing'
-  import { base } from '$app/paths';
+  import { cubicInOut, quadInOut } from 'svelte/easing'
+  import { tweened } from 'svelte/motion'
 
+  import { base } from '$app/paths'
+  import Camera from './Camera.svelte'
   import { luminosity, randomMass, massToType } from '$lib/stars'
   import fragmentShader from './fragment.glsl?raw'
   import vertexShader from './vertex.glsl?raw'
@@ -12,6 +14,10 @@
   interactivity()
 
   const amount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
+
+  const cameraX = tweened(0, { duration: 1000, easing: quadInOut })
+  const cameraY = tweened(0, { duration: 1000, easing: quadInOut })
+  const cameraZ = tweened(0, { duration: 1000, easing: quadInOut })
 
   const positions = new Float32Array( amount * 3 )
   const colors = new Float32Array( amount * 3 )
@@ -47,7 +53,6 @@
     addStar(randomMass(), i)
   }
 
-
   const pointsBufferGeometry = new BufferGeometry()
 
   pointsBufferGeometry.setAttribute('position', new BufferAttribute( positions, 3 ));
@@ -64,46 +69,53 @@
         sizeAttr.needsUpdate = true
 
         for (let index in hoverTransitions) {
+          sizeAttr.array[index] = baseSizes[index] * (1 + cubicInOut(hoverTransitions[index]))
           if (hoverIndex == index) {
             // Easing bigger, because hovered
-            if (hoverTransitions[index] < 1) {
-              hoverTransitions[index] += delta / hoverAnimationSpan
+            hoverTransitions[index] += delta / hoverAnimationSpan
+            if (hoverTransitions[index] >= 1) {
+              delete hoverTransitions[index]
             }
           } else {
             // Easing smaller, because no longer hovered
             hoverTransitions[index] -= delta / hoverAnimationSpan
-          }
-          sizeAttr.array[index] = baseSizes[index] * (1 + cubicInOut(hoverTransitions[index]))
-          if (hoverTransitions[index] <= 0) {
-            delete hoverTransitions[index]
+            if (hoverTransitions[index] <= 0) {
+              delete hoverTransitions[index]
+            }
           }
         }
         invalidate()
       }
+      // stats.update()
     },
     { invalidate: false }
   )
 
-  const cameraOffset = new Vector3(0, 0.205, -0.75)
+  const bestIntersection = (event) => event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
+
+  let tweening = false
+  const onDblClick = async (event) => {
+    event.stopPropagation()
+
+    const intersection = bestIntersection(event)
+
+    if (intersection) {
+      tweening = true
+      cameraX.set(positions[intersection.index * 3])
+      cameraY.set(positions[intersection.index * 3 + 1])
+
+      await cameraZ.set(positions[intersection.index * 3 + 2])
+      tweening = false
+    }
+  }
 </script>
 
-<T.PerspectiveCamera
-  makeDefault
-  position={[2, 0, 0]}
-  fov={60}
->
-  <OrbitControls
-    autoRotate
-    autoRotateSpeed={0.01}
-    enableZoom={true}
-    enablePan={false}
-    enableDamping={true}
-    dampingFactor={0.03}
-    target.x={cameraOffset.x}
-    target.y={cameraOffset.y}
-    target.z={cameraOffset.z}
-  />
-</T.PerspectiveCamera>
+<Camera
+  x={$cameraX}
+  y={$cameraY}
+  z={$cameraZ}
+  lockDistance={tweening}
+/>
 
 <Environment
   path="{base}/assets/"
@@ -117,13 +129,16 @@
 
   on:pointermove={(event) => {
     event.stopPropagation()
-    const intersection = event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
+    const intersection = bestIntersection(event)
 
     if (intersection && hoverIndex !== intersection.index) {
+      hoverTransitions[hoverIndex] = 1
       hoverIndex = intersection.index
       hoverTransitions[hoverIndex] = 0
     }
   }}
+
+  on:dblclick={onDblClick}
 >
   <T is={pointsBufferGeometry} />
   <T.ShaderMaterial
