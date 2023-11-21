@@ -4,9 +4,11 @@
   import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
   import { cubicInOut, quadInOut } from 'svelte/easing'
   import { tweened } from 'svelte/motion'
+  import { fade } from 'svelte/transition'
 
   import { base } from '$app/paths'
   import Camera from './Camera.svelte'
+  import CssObject from './CssObject.svelte'
   import { luminosity, randomMass, massToType } from '$lib/stars'
   import fragmentShader from './fragment.glsl?raw'
   import vertexShader from './vertex.glsl?raw'
@@ -124,9 +126,6 @@
 />
 
 <T.Points
-  position.y={0.2}
-  position.z={-0.75}
-
   on:pointermove={(event) => {
     event.stopPropagation()
     const intersection = bestIntersection(event)
@@ -155,3 +154,18 @@
     transparent={false}
   />
 </T.Points>
+
+{#each Object.keys(hoverTransitions) as index}
+<CssObject
+  position.x={positions[index * 3]}
+  position.y={positions[index * 3 + 1]}
+  position.z={positions[index * 3 + 2]}
+  center={[0, 0.5]}
+>
+  <div class="px-4" transition:fade>
+    <button type="button" class="btn btn-primary">
+      {index}
+    </button>
+  </div>
+</CssObject>
+{/each}

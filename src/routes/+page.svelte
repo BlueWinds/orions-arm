@@ -1,5 +1,7 @@
 <script>
   import App from '$lib/components/App.svelte'
+
+  import "../app.scss";
 </script>
 
 <div>
