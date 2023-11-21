@@ -155,7 +155,7 @@
   />
 </T.Points>
 
-{#each Object.keys(hoverTransitions) as index}
+<!--{#each Object.keys(hoverTransitions) as index}
 <CssObject
   position.x={positions[index * 3]}
   position.y={positions[index * 3 + 1]}
@@ -168,4 +168,4 @@
     </button>
   </div>
 </CssObject>
-{/each}
+{/each}-->
