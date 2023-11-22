@@ -2,16 +2,16 @@
   import { onMount } from 'svelte';
   import { T, useFrame, useThrelte } from '@threlte/core'
   import { OrbitControls } from '@threlte/extras'
-  import { quadInOut } from 'svelte/easing'
+  import { sineInOut } from 'svelte/easing'
   import { tweened } from 'svelte/motion'
 
   export let x = 0
   export let y = 0
   export let z = 0
 
-  const targetX = tweened(x + 0.0001, { duration: 1000, easing: quadInOut })
-  const targetY = tweened(y + 0.0001, { duration: 1000, easing: quadInOut })
-  const targetZ = tweened(z + 0.0001, { duration: 1000, easing: quadInOut })
+  const targetX = tweened(x + 0.0001, { duration: 1000, easing: sineInOut })
+  const targetY = tweened(y + 0.0001, { duration: 1000, easing: sineInOut })
+  const targetZ = tweened(z + 0.0001, { duration: 1000, easing: sineInOut })
   let animating = false
   let lastDistance = 1000
   let controls
