@@ -18,17 +18,17 @@
 
   const { onPointerEnter, onPointerLeave } = useCursor('pointer', 'auto')
 
-  const amount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
+  const starCount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
 
   const names = []
-  const positions = new Float32Array( amount * 3 )
-  const colors = new Float32Array( amount * 3 )
-  const sizes = new Float32Array( amount )
-  const baseSizes = new Float32Array( amount )
+  const positions = new Float32Array( starCount * 3 )
+  const colors = new Float32Array( starCount * 3 )
+  const sizes = new Float32Array( starCount )
+  const baseSizes = new Float32Array( starCount )
 
   const vertex = new Vector3(0, 0, 0)
   const color = new Color( 0xffffff )
-  const masses = new Array( amount )
+  const masses = new Array( starCount )
 
   const addStar = (mass, i) => {
     const [brightness, c] = luminosity(mass)
@@ -47,9 +47,12 @@
   addStar(1, 0)
   names[0] = 'Sol'
 
-  const boxSize = 40
+  const boxSize = 50
+  const stellarDensity = 0.004 // stars per cubic LY
 
-  for ( let i = 1; i < amount; i ++ ) {
+  const lyPerDistance = Math.pow(starCount / (boxSize * boxSize * boxSize) / stellarDensity, 1/3)
+
+  for ( let i = 1; i < starCount; i ++ ) {
     vertex.x = (Math.random() - 0.5) * boxSize
     vertex.y = (Math.random() - 0.5) * boxSize
     vertex.z = (Math.random() - 0.5) * boxSize
@@ -101,16 +104,16 @@
 
   const bestIntersection = (event) => event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
 
-  let cameraX = 0
-  let cameraY = 0
-  let cameraZ = 0
+  let cameraTarget = new Vector3(0, 0, 0)
+
+  const target = new Vector3(0, 0, 0)
+  const distance = index => {
+    target.fromArray(positions, index * 3)
+    return cameraTarget.distanceTo(target) * lyPerDistance
+  }
 </script>
 
-<Camera
-  x={cameraX}
-  y={cameraY}
-  z={cameraZ}
-/>
+<Camera target={cameraTarget} />
 
 <Environment
   path="{base}/assets/"
@@ -138,9 +141,7 @@
   }}
   on:dblclick={() => {
     if (hoverIndex !== undefined) {
-      cameraX = positions[hoverIndex * 3]
-      cameraY = positions[hoverIndex * 3 + 1]
-      cameraZ = positions[hoverIndex * 3 + 2]
+      cameraTarget = new Vector3(positions[hoverIndex * 3], positions[hoverIndex * 3 + 1], positions[hoverIndex * 3 + 2])
     }
   }}
 >
@@ -169,7 +170,7 @@
     center={[0, 0.5]}
   >
     <div class="star-label" transition:fade>
-      <div>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>)</div>
+      <div>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>) - {distance(index).toPrecision(3)} LY</div>
     </div>
   </CssObject>
   {/if}

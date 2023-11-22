@@ -1,36 +1,26 @@
 <script>
-  import { onMount } from 'svelte';
+  import { Vector3 } from 'three'
+  import { onMount } from 'svelte'
   import { T, useFrame, useThrelte } from '@threlte/core'
-  import { OrbitControls } from '@threlte/extras'
-  import { sineInOut } from 'svelte/easing'
-  import { tweened } from 'svelte/motion'
+  import CameraControls from './CameraControls.svelte'
 
-  export let x = 0
-  export let y = 0
-  export let z = 0
+  export let target = new Vector3()
+  $: controls = null
 
-  const options = {
-    duration: 1000,
-    easing: sineInOut,
-  }
-
-  const targetX = tweened(x + 0.0001, options)
-  const targetY = tweened(y + 0.0001, options)
-  const targetZ = tweened(z + 0.0001, options)
-  let animating = false
-  let lastDistance = 1000
-  let controls
+  const startPosition = new Vector3()
+  const currentTarget = new Vector3()
 
   $: {
     if (controls) {
-      animating = true
-      lastDistance = controls.getDistance()
+      controls.setOrbitPoint(0, 0, 0)
     }
+  }
 
-    console.log('running3')
-    targetX.set(x)
-    targetY.set(y)
-    targetZ.set(z).then(() => animating = false)
+  $: {
+    if (controls) {
+      controls.moveTo(target.x, target.y, target.z, true)
+      controls.rotate((Math.random() - 0.5) * Math.PI / 2, (Math.random() - 0.5) * Math.PI / 2, true)
+    }
   }
 
 </script>
@@ -39,16 +29,14 @@
   makeDefault
   fov={60}
 >
-  <OrbitControls
+  <CameraControls
     bind:ref={controls}
     enableZoom={true}
     enablePan={false}
     enableDamping={true}
-    dampingFactor={0.03}
-    target.x={$targetX}
-    target.y={$targetY}
-    target.z={$targetZ}
-    maxDistance={animating ? lastDistance : 5}
+    smoothTime={0.4}
+    maxDistance={5}
     minDistance={0.5}
+    restThreshold={0.00025}
   />
 </T.PerspectiveCamera>
