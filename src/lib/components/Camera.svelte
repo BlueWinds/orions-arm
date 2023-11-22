@@ -9,9 +9,14 @@
   export let y = 0
   export let z = 0
 
-  const targetX = tweened(x + 0.0001, { duration: 1000, easing: sineInOut })
-  const targetY = tweened(y + 0.0001, { duration: 1000, easing: sineInOut })
-  const targetZ = tweened(z + 0.0001, { duration: 1000, easing: sineInOut })
+  const options = {
+    duration: 1000,
+    easing: sineInOut,
+  }
+
+  const targetX = tweened(x + 0.0001, options)
+  const targetY = tweened(y + 0.0001, options)
+  const targetZ = tweened(z + 0.0001, options)
   let animating = false
   let lastDistance = 1000
   let controls
@@ -22,6 +27,7 @@
       lastDistance = controls.getDistance()
     }
 
+    console.log('running3')
     targetX.set(x)
     targetY.set(y)
     targetZ.set(z).then(() => animating = false)

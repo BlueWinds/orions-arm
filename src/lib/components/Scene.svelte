@@ -169,14 +169,14 @@
     center={[0, 0.5]}
   >
     <div class="star-label" transition:fade>
-      <label>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>)</label>
+      <div>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>)</div>
     </div>
   </CssObject>
   {/if}
 {/each}
 
 <style>
-  .star-label label {
+  .star-label div {
     pointer-events: none;
     color: white;
     background: #000b;
