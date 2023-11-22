@@ -14,6 +14,7 @@
     easing: sineInOut,
   }
 
+
   const targetX = tweened(x + 0.0001, options)
   const targetY = tweened(y + 0.0001, options)
   const targetZ = tweened(z + 0.0001, options)
@@ -27,7 +28,6 @@
       lastDistance = controls.getDistance()
     }
 
-    console.log('running3')
     targetX.set(x)
     targetY.set(y)
     targetZ.set(z).then(() => animating = false)
