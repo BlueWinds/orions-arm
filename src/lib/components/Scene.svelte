@@ -1,8 +1,8 @@
 <script>
   import { T, useLoader, useFrame } from '@threlte/core'
-  import { Environment, interactivity } from '@threlte/extras'
+  import { Environment, interactivity, useCursor } from '@threlte/extras'
   import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
-  import { cubicInOut, quadInOut } from 'svelte/easing'
+  import { cubicInOut } from 'svelte/easing'
   import { tweened } from 'svelte/motion'
   import { fade } from 'svelte/transition'
 
@@ -10,17 +10,17 @@
   import Camera from './Camera.svelte'
   import CssObject from './CssObject.svelte'
   import { luminosity, randomMass, massToType } from '$lib/stars'
+  import randomName from '$lib/starNames'
   import fragmentShader from './fragment.glsl?raw'
   import vertexShader from './vertex.glsl?raw'
 
   interactivity()
 
+  const { onPointerEnter, onPointerLeave } = useCursor('pointer', 'auto')
+
   const amount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
 
-  const cameraX = tweened(0, { duration: 1000, easing: quadInOut })
-  const cameraY = tweened(0, { duration: 1000, easing: quadInOut })
-  const cameraZ = tweened(0, { duration: 1000, easing: quadInOut })
-
+  const names = []
   const positions = new Float32Array( amount * 3 )
   const colors = new Float32Array( amount * 3 )
   const sizes = new Float32Array( amount )
@@ -41,9 +41,11 @@
     masses[i] = mass
     baseSizes[i] = brightness / 3
     sizes[i] = brightness / 3
+    names[i] = randomName()
   }
 
   addStar(1, 0)
+  names[0] = 'Sol'
 
   const boxSize = 40
 
@@ -61,9 +63,9 @@
   pointsBufferGeometry.setAttribute('customColor', new BufferAttribute( colors, 3 ));
   pointsBufferGeometry.setAttribute('size', new BufferAttribute( sizes, 1 ));
 
-  let hoverIndex, hoverTransitions = {}
+  let hoverIndex, hoverTransitions = {}, labels = {}
 
-  const hoverAnimationSpan = 0.3
+  const hoverAnimationSpan = 0.5
   useFrame(
     ({ invalidate }, delta) => {
       if (Object.keys(hoverTransitions).length) {
@@ -75,6 +77,10 @@
           if (hoverIndex == index) {
             // Easing bigger, because hovered
             hoverTransitions[index] += delta / hoverAnimationSpan
+
+            if (hoverTransitions[index] > 0.4 ) {
+              labels[hoverIndex] = true
+            }
             if (hoverTransitions[index] >= 1) {
               delete hoverTransitions[index]
             }
@@ -82,41 +88,28 @@
             // Easing smaller, because no longer hovered
             hoverTransitions[index] -= delta / hoverAnimationSpan
             if (hoverTransitions[index] <= 0) {
+              delete labels[index]
               delete hoverTransitions[index]
             }
           }
         }
         invalidate()
       }
-      // stats.update()
     },
     { invalidate: false }
   )
 
   const bestIntersection = (event) => event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
 
-  let tweening = false
-  const onDblClick = async (event) => {
-    event.stopPropagation()
-
-    const intersection = bestIntersection(event)
-
-    if (intersection) {
-      tweening = true
-      cameraX.set(positions[intersection.index * 3])
-      cameraY.set(positions[intersection.index * 3 + 1])
-
-      await cameraZ.set(positions[intersection.index * 3 + 2])
-      tweening = false
-    }
-  }
+  let cameraX = 0
+  let cameraY = 0
+  let cameraZ = 0
 </script>
 
 <Camera
-  x={$cameraX}
-  y={$cameraY}
-  z={$cameraZ}
-  lockDistance={tweening}
+  x={cameraX}
+  y={cameraY}
+  z={cameraZ}
 />
 
 <Environment
@@ -130,14 +123,26 @@
     event.stopPropagation()
     const intersection = bestIntersection(event)
 
-    if (intersection && hoverIndex !== intersection.index) {
+    if (intersection) {
+      onPointerEnter()
+      if (hoverIndex !== intersection.index) {
+        hoverTransitions[hoverIndex] = 1
+        hoverIndex = intersection.index
+        hoverTransitions[hoverIndex] = 0
+      }
+    } else {
+      onPointerLeave()
       hoverTransitions[hoverIndex] = 1
-      hoverIndex = intersection.index
-      hoverTransitions[hoverIndex] = 0
+      hoverIndex = undefined
     }
   }}
-
-  on:dblclick={onDblClick}
+  on:dblclick={() => {
+    if (hoverIndex !== undefined) {
+      cameraX = positions[hoverIndex * 3]
+      cameraY = positions[hoverIndex * 3 + 1]
+      cameraZ = positions[hoverIndex * 3 + 2]
+    }
+  }}
 >
   <T is={pointsBufferGeometry} />
   <T.ShaderMaterial
@@ -155,17 +160,28 @@
   />
 </T.Points>
 
-<!--{#each Object.keys(hoverTransitions) as index}
-<CssObject
-  position.x={positions[index * 3]}
-  position.y={positions[index * 3 + 1]}
-  position.z={positions[index * 3 + 2]}
-  center={[0, 0.5]}
->
-  <div class="px-4" transition:fade>
-    <button type="button" class="btn btn-primary">
-      {index}
-    </button>
-  </div>
-</CssObject>
-{/each}-->
+{#each Object.keys(masses) as index}
+  {#if labels[index]}
+  <CssObject key={index}
+    position.x={positions[index * 3]}
+    position.y={positions[index * 3 + 1]}
+    position.z={positions[index * 3 + 2]}
+    center={[0, 0.5]}
+  >
+    <div class="star-label" transition:fade>
+      <label>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>)</label>
+    </div>
+  </CssObject>
+  {/if}
+{/each}
+
+<style>
+  .star-label label {
+    pointer-events: none;
+    color: white;
+    background: #000b;
+    border-radius: 0.25rem;
+    padding: 0.5rem 1.5rem;
+    margin-left: 1rem;
+  }
+</style>
