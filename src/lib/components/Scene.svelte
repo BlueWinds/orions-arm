@@ -3,14 +3,13 @@
   import { Environment, interactivity, useCursor } from '@threlte/extras'
   import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Vector3, TextureLoader } from 'three'
   import { cubicInOut } from 'svelte/easing'
-  import { tweened } from 'svelte/motion'
   import { fade } from 'svelte/transition'
 
   import { base } from '$app/paths'
   import Camera from './Camera.svelte'
   import CssObject from './CssObject.svelte'
-  import { luminosity, randomMass, massToType } from '$lib/stars'
-  import randomName from '$lib/starNames'
+  import PlanetarySystem from './PlanetarySystem.svelte'
+  import randomGalaxy from '$lib/stars'
   import fragmentShader from './fragment.glsl?raw'
   import vertexShader from './vertex.glsl?raw'
 
@@ -20,45 +19,24 @@
 
   const starCount = parseInt((location.search.match(/stars=(\d+)/) || [, 10000])[1], 10)
 
-  const names = []
+  const stellarDensity = 0.004 // stars per cubic LY
+  const boxSize = Math.pow(starCount * stellarDensity, 1/3)
+
+  const stars = randomGalaxy(boxSize, starCount)
+
   const positions = new Float32Array( starCount * 3 )
   const colors = new Float32Array( starCount * 3 )
   const sizes = new Float32Array( starCount )
-  const baseSizes = new Float32Array( starCount )
 
-  const vertex = new Vector3(0, 0, 0)
-  const color = new Color( 0xffffff )
-  const masses = new Array( starCount )
+  stars.forEach((star, i) => {
+    star.position.toArray(positions, i * 3)
+    star.color.toArray(colors, i * 3)
+    sizes[i] = star.luminosity
+  })
 
-  const addStar = (mass, i) => {
-    const [brightness, c] = luminosity(mass)
+  const focusShrink = 10
 
-    color.set(c)
-
-    vertex.toArray(positions, i * 3)
-    color.toArray(colors, i * 3)
-
-    masses[i] = mass
-    baseSizes[i] = brightness / 3
-    sizes[i] = brightness / 3
-    names[i] = randomName()
-  }
-
-  addStar(1, 0)
-  names[0] = 'Sol'
-
-  const boxSize = 50
-  const stellarDensity = 0.004 // stars per cubic LY
-
-  const lyPerDistance = Math.pow(starCount / (boxSize * boxSize * boxSize) / stellarDensity, 1/3)
-
-  for ( let i = 1; i < starCount; i ++ ) {
-    vertex.x = (Math.random() - 0.5) * boxSize
-    vertex.y = (Math.random() - 0.5) * boxSize
-    vertex.z = (Math.random() - 0.5) * boxSize
-
-    addStar(randomMass(), i)
-  }
+  sizes[0] /= focusShrink
 
   const pointsBufferGeometry = new BufferGeometry()
 
@@ -66,51 +44,66 @@
   pointsBufferGeometry.setAttribute('customColor', new BufferAttribute( colors, 3 ));
   pointsBufferGeometry.setAttribute('size', new BufferAttribute( sizes, 1 ));
 
-  let hoverIndex, hoverTransitions = {}, labels = {}
+  let focusIndex = 0
+  $: cameraTarget = stars[focusIndex].position
+  let hoverIndex, sizeTransitions = {}, focusTransitions = {0: 1 / focusShrink}, labels = {}
 
   const hoverAnimationSpan = 0.5
+  const focusAnimationSpan = 0.2
   useFrame(
     ({ invalidate }, delta) => {
-      if (Object.keys(hoverTransitions).length) {
+      if (Object.keys(sizeTransitions).length) {
         const sizeAttr = pointsBufferGeometry.attributes.size
-        sizeAttr.needsUpdate = true
 
-        for (let index in hoverTransitions) {
-          sizeAttr.array[index] = baseSizes[index] * (1 + cubicInOut(hoverTransitions[index]))
+        for (let index in focusTransitions) {
+          if (focusIndex == index) {
+            // Easing smaller, because focused
+            if (focusTransitions[index] > 1 / focusShrink) {
+              focusTransitions[index] = Math.max(1 / focusShrink, focusTransitions[index] - delta / focusAnimationSpan)
+            }
+          } else {
+            // Easing bigger, because no longer focused
+            focusTransitions[index] = delta / focusAnimationSpan
+            if (focusTransitions[index] >= 1) {
+              delete focusTransitions[index]
+            }
+          }
+
+          if (!sizeTransitions[index]) {
+            sizeAttr.array[index] = stars[index].luminosity * (focusTransitions[index] ?? 1)
+          }
+        }
+
+        for (let index in sizeTransitions) {
+          const baseSize = focusTransitions[index] ?? 1
+          sizeAttr.array[index] = stars[index].luminosity * (1 + cubicInOut(sizeTransitions[index])) * baseSize
           if (hoverIndex == index) {
             // Easing bigger, because hovered
-            hoverTransitions[index] += delta / hoverAnimationSpan
+            if (sizeTransitions[index] < 1) {
+              sizeTransitions[index] += delta / hoverAnimationSpan
 
-            if (hoverTransitions[index] > 0.4 ) {
-              labels[hoverIndex] = true
-            }
-            if (hoverTransitions[index] >= 1) {
-              delete hoverTransitions[index]
+              if (sizeTransitions[index] > 0.4 ) {
+                labels[hoverIndex] = true
+              }
             }
           } else {
             // Easing smaller, because no longer hovered
-            hoverTransitions[index] -= delta / hoverAnimationSpan
-            if (hoverTransitions[index] <= 0) {
+            sizeTransitions[index] -= delta / hoverAnimationSpan
+            if (sizeTransitions[index] <= 0) {
               delete labels[index]
-              delete hoverTransitions[index]
+              labels = {...labels}
+              delete sizeTransitions[index]
             }
           }
         }
+        sizeAttr.needsUpdate = true
         invalidate()
       }
     },
     { invalidate: false }
   )
 
-  const bestIntersection = (event) => event.intersections.find(i => i.distanceToRay / i.distance ** 0.5 < 0.07)
-
-  let cameraTarget = new Vector3(0, 0, 0)
-
-  const target = new Vector3(0, 0, 0)
-  const distance = index => {
-    target.fromArray(positions, index * 3)
-    return cameraTarget.distanceTo(target) * lyPerDistance
-  }
+  const distance = star => cameraTarget.distanceTo(star.position)
 </script>
 
 <Camera target={cameraTarget} />
@@ -124,24 +117,27 @@
 <T.Points
   on:pointermove={(event) => {
     event.stopPropagation()
-    const intersection = bestIntersection(event)
+    const intersection = event.intersections.find(i => {
+      const fov = 0.01 / (focusIndex === i.index ? 7 : 1)
+      return i.distanceToRay / i.distance ** 0.5 < fov
+    })
 
     if (intersection) {
       onPointerEnter()
       if (hoverIndex !== intersection.index) {
-        hoverTransitions[hoverIndex] = 1
         hoverIndex = intersection.index
-        hoverTransitions[hoverIndex] = 0
+        sizeTransitions[hoverIndex] = 0
       }
     } else {
       onPointerLeave()
-      hoverTransitions[hoverIndex] = 1
       hoverIndex = undefined
     }
   }}
   on:dblclick={() => {
     if (hoverIndex !== undefined) {
-      cameraTarget = new Vector3(positions[hoverIndex * 3], positions[hoverIndex * 3 + 1], positions[hoverIndex * 3 + 2])
+      focusIndex = hoverIndex
+      focusTransitions[focusIndex] = focusTransitions[focusIndex] || 1
+      hoverIndex = undefined
     }
   }}
 >
@@ -150,7 +146,7 @@
     {fragmentShader}
     {vertexShader}
     uniforms={{
-      color: { value: color },
+      color: { value: new Color( 0xffffff ) },
       pointTexture: { value: new TextureLoader().load(base + '/assets/disc.png') },
       alphaTest: { value: 0.5 },
     }}
@@ -161,20 +157,26 @@
   />
 </T.Points>
 
-{#each Object.keys(masses) as index}
+{#each stars as star, index}
   {#if labels[index]}
-  <CssObject key={index}
-    position.x={positions[index * 3]}
-    position.y={positions[index * 3 + 1]}
-    position.z={positions[index * 3 + 2]}
+  <CssObject key={star.position}
+    position.x={star.position.x}
+    position.y={star.position.y}
+    position.z={star.position.z}
     center={[0, 0.5]}
   >
     <div class="star-label" transition:fade>
-      <div>{names[index]} ({masses[index].toPrecision(3)}<sub>M☉</sub>) - {distance(index).toPrecision(3)} LY</div>
+      <div>
+        {star.name} ({star.mass.toPrecision(3)}<sub>M☉</sub>){#if focusIndex !== index}<span> - {distance(star).toPrecision(3)} LY}</span>{/if}
+      </div>
     </div>
   </CssObject>
   {/if}
 {/each}
+
+{#key focusIndex}
+  <PlanetarySystem star={stars[focusIndex]} />
+{/key}
 
 <style>
   .star-label div {

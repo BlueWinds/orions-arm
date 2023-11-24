@@ -7,15 +7,6 @@
   export let target = new Vector3()
   $: controls = null
 
-  const startPosition = new Vector3()
-  const currentTarget = new Vector3()
-
-  $: {
-    if (controls) {
-      controls.setOrbitPoint(0, 0, 0)
-    }
-  }
-
   $: {
     if (controls) {
       controls.moveTo(target.x, target.y, target.z, true)
@@ -23,11 +14,15 @@
     }
   }
 
+  onMount(() => {
+    controls.setOrbitPoint(0, 0, 0)
+  })
 </script>
 
 <T.PerspectiveCamera
   makeDefault
-  fov={60}
+  fov={30}
+  near={0.00001}
 >
   <CameraControls
     bind:ref={controls}
@@ -35,8 +30,8 @@
     enablePan={false}
     enableDamping={true}
     smoothTime={0.4}
-    maxDistance={5}
-    minDistance={0.5}
+    maxDistance={0.25}
+    minDistance={0.005}
     restThreshold={0.00025}
   />
 </T.PerspectiveCamera>
